@@ -11,6 +11,8 @@ class Request:
 
 def cplex_solve_question(N,K,P,R,Q,C,Request_list,T):
 
+    # 初始化模型
+
     varnames=[]
     ub=[]
     lb=[]
@@ -90,31 +92,29 @@ def cplex_solve_question(N,K,P,R,Q,C,Request_list,T):
             senses = senses + "E"
             rhs.append(0)
 
-    '''print(rownames)
-    print(rows)
-    print(rhs)
-    print(obj)'''
-
     prob = cplex.Cplex()
+    prob.parameters.threads.set(1)
     prob.set_log_stream(None)
     prob.set_error_stream(None)
     prob.set_warning_stream(None)
     prob.set_results_stream(None)
     prob.objective.set_sense(prob.objective.sense.maximize)
-
     prob.variables.add(obj=obj, ub=ub, lb=lb, types=types, names=varnames)
     prob.linear_constraints.add(lin_expr=rows, senses=senses, rhs=rhs, names=rownames)
     prob.solve()
-
     solution_x=prob.solution.get_values()[0:N*T]
     for i in range(len(solution_x)):
-        solution_x[i]=int(solution_x[i])
+        solution_x[i]=round(solution_x[i])
     return prob.solution.get_objective_value(),solution_x
 
 if __name__ == '__main__':
+    # 用户数量
     N = 2
+    # vm数量
     K = 2
+    # PM数量
     P = 2
+    # 资源种类
     R = 3
 
     Q = [
@@ -129,7 +129,6 @@ if __name__ == '__main__':
     Request_list = [Request(3, 8, [[1, 0]] * K, 2, 2),
                     Request(1, 9, [[1, 0, 1]] * K, 3, 4),
                     Request(2, 7, [[0, 1, 0]] * K, 3, 3), ]
-
 
     T = max([Request_list[i].d for i in range(N)])
     print([Request_list[i].d for i in range(N)])

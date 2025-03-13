@@ -20,7 +20,7 @@ class Request:
 class net(nn.Module):
     def __init__(self, hidden_size,N,K,P,R,Tmax,L,batch_size,softmax_temp,device):
         super(net, self).__init__()
-        self.mlp1=nn.Sequential(nn.Linear(N, hidden_size),
+        self.trans=nn.Sequential(nn.Linear(N, hidden_size),
                         nn.ReLU(),
                         nn.Linear(hidden_size, hidden_size),
                         nn.TransformerEncoderLayer(hidden_size, 4, hidden_size, batch_first=True, dropout=0),
@@ -66,7 +66,7 @@ class net(nn.Module):
 
         bid_vector= bid.reshape(-1,1,self.N).repeat(1,self.L,1).permute(0,2,1).float()
         input_vector = menue_item
-        output = self.mlp1(input_vector)
+        output = self.trans(input_vector)
 
         w = self.n_bidder_representation.to(self.device).float()+1
         w = self.wnet(w)
@@ -119,9 +119,11 @@ class net(nn.Module):
         menue_item = torch.tensor(menues, device=device)
         menue_item = menue_item.float()
 
+
         bid_vector = bid.reshape(-1, 1, self.N).repeat(1, self.L, 1).permute(0,2,1).float()
         input_vector = menue_item
         output = self.mlp1(input_vector)
+
 
         w=self.n_bidder_representation.to(self.device).float()+1
         w=self.wnet(w)
@@ -183,9 +185,9 @@ def load_data(dir):
     Q=np.load(os.path.join(dir, 'Q.npy'))
     C=np.load(os.path.join(dir, 'C.npy'))
     Request_list=np.load(os.path.join(dir, 'Request_list.npy'),allow_pickle=True)
-    menues=np.load(os.path.join(dir, 'menus.npy'))
+    menus=np.load(os.path.join(dir, 'menus.npy'))
 
-    return Q,C,Request_list,menues
+    return Q,C,Request_list,menus
 
 
 def set_seed(seed):
@@ -200,28 +202,35 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def data_write_csv(file_name, datas): 
+def data_write_csv(file_name, datas):  # file_name为写入CSV文件的路径，datas为要写入数据列表
     file_csv = codecs.open(file_name, 'w', 'utf-8')
     writer = csv.writer(file_csv)
+    writer.writerow(['epoch', 'train', 'test'])
     for data in datas:
         if len(data)>=1:
             writer.writerow([data[0],data[1],data[2]])
-        else:
-            writer.writerow(data)
-    print("保存文件成功，处理结束")
+        # else:
+        #     writer.writerow(data)
 
 if __name__ == '__main__':
-    N =4
-    K =10
-    P =2
+    # 用户数量
+    N =10
+    # vm数量
+    K =5
+    # PM数量
+    P =3
+    # 资源种类
     R = 3
-    Tmax=3
+    #最大时间
+    Tmax=5
 
 
     seed = 2022
     set_seed(seed)
 
-    train_num=5000
+    #torch.use_deterministic_algorithms(True)
+
+    train_num=960
     test_num=960
     batch_size=64
 
@@ -229,21 +238,21 @@ if __name__ == '__main__':
     test_seed=2024
 
     hidden_size=32
-    L=2**N
+    #菜单
+    L=200
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device='cuda'
 
-    path = 'data/'+str(N)+'x'+str(K)+'x'+str(P)+'/train'
-    train_Q,train_C,train_Request_list,train_menues=load_data(path)
-    path = 'data/'+str(N)+'x'+str(K)+'x'+str(P)+'/test'
-    test_Q, test_C, test_Request_list, test_menues = load_data(path)
+    path = 'data/'+str(N)+'x'+str(K)+'x'+str(P)+'x'+str(R)+'x'+str(Tmax)+'/train'
+    train_Q,train_C,train_Request_list,train_menus=load_data(path)
+    path = 'data/'+str(N)+'x'+str(K)+'x'+str(P)+'x'+str(R)+'x'+str(Tmax)+'/test'
+    test_Q, test_C, test_Request_list, test_menus = load_data(path)
 
-    print(np.array(test_C).shape)
     P = np.array(test_C).shape[1]
 
-    train_menues=train_menues[:,:L]
-    test_menues=test_menues[:,:L]
+    train_menus=train_menus[:,:L]
+    test_menus=test_menus[:,:L]
 
     batch_revenue=0
 
@@ -273,7 +282,7 @@ if __name__ == '__main__':
         model.device = DEVICE
         for j in range(int(train_num/batch_size)):
             optimizer.zero_grad()
-            payment,w,lamb,welfare= model(train_Request_list[j * batch_size:(j + 1) * batch_size],train_menues[j * batch_size:(j + 1) * batch_size])
+            payment,w,lamb,welfare= model(train_Request_list[j * batch_size:(j + 1) * batch_size],train_menus[j * batch_size:(j + 1) * batch_size])
 
             loss=- payment.sum(0).mean()
 
@@ -284,10 +293,10 @@ if __name__ == '__main__':
 
             loss.backward()
             optimizer.step()
+            #print(loss.item())
 
 
         print("第{}轮:{},社会福利{}".format(epoch+1,loss_sum/(int(train_num/batch_size)*batch_size),welfare_sum/(int(train_num/batch_size)*batch_size)))
-
 
         DEVICE = 'cpu'
         model = model.to(DEVICE)
@@ -304,7 +313,7 @@ if __name__ == '__main__':
             for j in range(int(test_num / batch_size)):
                 payment,w,lamb,welfare,num_win = model.test_forward(
                     test_Request_list[j * batch_size:(j + 1) * batch_size],
-                    test_menues[j * batch_size:(j + 1) * batch_size],DEVICE
+                    test_menus[j * batch_size:(j + 1) * batch_size],DEVICE
                     )
                 w_bs[j*batch_size:(j+1)*batch_size,:]=w
                 lamb_bs[j * batch_size:(j + 1) * batch_size, :] = lamb
@@ -321,17 +330,17 @@ if __name__ == '__main__':
             print("获胜对:{}".format(num_win_sum))
             if loss_sum / (int(train_num / batch_size) * batch_size) > max_value:
                 max_value = loss_sum / (int(train_num / batch_size) * batch_size)
-                max_sw=welfare_sum
-                max_revenue=revenue
-                max_win=num_win_sum
+                max_sw = welfare_sum
+                max_revenue = revenue
+                max_win = num_win_sum
 
 
         lossData.append([epoch, loss_sum / (int(train_num / batch_size) * batch_size),revenue])
 
     w_bs=w_bs.numpy()
-    print(w_bs)
-    print(max_sw,max_revenue,max_win)
+    print("社会福利{}".format(max_sw),"获胜对{}".format(max_win),"平均收入是{}".format(max_revenue))
     lamb_bs=lamb_bs.numpy()
-    np.save(os.path.join('F:\yanjiusheng\shixuyigou\data\loss', "w42"), w_bs, allow_pickle=True, fix_imports=True)
-    np.save(os.path.join('F:\yanjiusheng\shixuyigou\data\loss', "lamb42"), lamb_bs, allow_pickle=True, fix_imports=True)
-    data_write_csv('F:\yanjiusheng\shixuyigou\data\loss\lossData42.csv',lossData)
+    path = 'data/' + str(N) + 'x' + str(K) + 'x' + str(P) + 'x' + str(R) + 'x' + str(Tmax)
+    np.save(os.path.join(path, "w"), w_bs, allow_pickle=True, fix_imports=True)
+    np.save(os.path.join(path, "lamb"), lamb_bs, allow_pickle=True, fix_imports=True)
+    data_write_csv(os.path.join(path,'lossData.csv'),lossData)

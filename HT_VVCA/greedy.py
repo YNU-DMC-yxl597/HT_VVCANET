@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import generate_data
 import torch.nn.functional as F
 import numpy as np
 import os
@@ -56,14 +55,13 @@ def alloc(N,K,P,R,Q,C,Request_list,T):
                         for o in range(Request_list[k].S[q][j - int(Request_list[k].a-1)]):
                             flag_i=0
                             for p in range(P):
-                                # r_i = 0
                                 flag_i_p = 0
                                 C_temp_i = copy.deepcopy(C_temp)
                                 for r in range(R):
-                                    # a = Request_list[k].S[q][j - int(X_t[k].item())] * Q[q][r]
                                     r_i = Q[q][r]
                                     if C_temp[p, r] < r_i:
                                         flag_i_p = 1
+                                        flag_i = 0
                                         break
                                     else:
                                         C_temp_i[p, r] -= r_i
@@ -123,19 +121,24 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 if __name__ == '__main__':
-    N = 4
-    K = 10
-    P = 5
+    # 用户数量
+    N = 10
+    # vm数量
+    K = 5
+    # PM数量
+    P = 3
+    # 资源种类
     R = 3
-    Tmax=3
+    #最大时间
+    Tmax=5
 
     seed = 2024
     set_seed(seed)
 
 
-    train_num=1000
+    train_num=960
     test_num=960
-    batch_size=64
+    batch_size=32
 
     train_seed=2023
     test_seed=2024
@@ -148,10 +151,9 @@ if __name__ == '__main__':
 
     path='data/'+str(N)+'x'+str(K)+'x'+str(P)+'/train'
 
-    path = 'data/'+str(N)+'x'+str(K)+'x'+str(P)+'/test'
+    path = 'data/'+str(N)+'x'+str(K)+'x'+str(P)+'x'+str(R)+'x'+str(Tmax)+'/test'
     test_Q, test_C, test_Request_list = load_data(path)
 
-    print(np.array(test_C).shape)
     P = np.array(test_C).shape[1]
 
     test_pay_sum = 0
