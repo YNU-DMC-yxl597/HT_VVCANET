@@ -68,8 +68,8 @@ class net(nn.Module):
         input_vector = menue_item
         output = self.trans(input_vector)
 
-        w = self.n_bidder_representation.to(self.device).float()+1
-        w = self.wnet(w)
+        w=self.bidder_embeddings(w).to(self.device).float()
+        w = self.wnet(w).sum(-1)
         w = torch.sigmoid(w)
         lamb=output[:, :, 0]
 
@@ -125,8 +125,8 @@ class net(nn.Module):
         output = self.mlp1(input_vector)
 
 
-        w=self.n_bidder_representation.to(self.device).float()+1
-        w=self.wnet(w)
+        w=self.bidder_embeddings(w).to(self.device).float()
+        w = self.wnet(w).sum(-1)
         w = torch.sigmoid(w)
         lamb=output[:, :, 0]
 
